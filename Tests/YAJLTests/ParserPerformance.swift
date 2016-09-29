@@ -13,7 +13,7 @@ class ParserBenchmarks: XCTestCase {
 
     measure {
       for _ in 0..<n {
-        _ = try! YAJL.parse(data)
+        _ = try! JSONParser.parse(data)
       }
     }
   }
@@ -24,7 +24,7 @@ class ParserBenchmarks: XCTestCase {
 
     measure {
       for _ in 0..<n {
-        _ = try! YAJL.parse(data)
+        _ = try! JSONParser.parse(data)
       }
     }
   }
@@ -34,7 +34,7 @@ class ParserBenchmarks: XCTestCase {
     let data = loadFixture("insane")
 
     measure {
-      _ = try! YAJL.parse(data)
+      _ = try! JSONParser.parse(data)
     }
   }
 

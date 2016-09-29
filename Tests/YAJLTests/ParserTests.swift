@@ -410,27 +410,27 @@ class ParsingTests: XCTestCase {
     }
     
     func testLineComment_start() {
-        expect("// This is a comment\n{'key':true}", toParseTo: .dictionary(["key": .bool(true)]))
+        expect("// This is a comment\n{'key':true}", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
     }
     
     
     func testLineComment_endWithNewline() {
-        expect("// This is a comment\n{'key':true}", toParseTo: .dictionary(["key": .bool(true)]))
-        expect("{'key':true}// This is a comment\n", toParseTo: .dictionary(["key": .bool(true)]))
+        expect("// This is a comment\n{'key':true}", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
+        expect("{'key':true}// This is a comment\n", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
     }
     
     func testLineComment_end() {
-        expect("{'key':true}// This is a comment", toParseTo: .dictionary(["key": .bool(true)]))
-        expect("{'key':true}\n// This is a comment", toParseTo: .dictionary(["key": .bool(true)]))
+        expect("{'key':true}// This is a comment", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
+        expect("{'key':true}\n// This is a comment", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
     }
     
     func testBlockComment_start() {
-        expect("/* This is a comment */{'key':true}", toParseTo: .dictionary(["key": .bool(true)]))
+        expect("/* This is a comment */{'key':true}", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
     }
     
     func testBlockComment_end() {
-        expect("{'key':true}/* This is a comment */", toParseTo: .dictionary(["key": .bool(true)]))
-        expect("{'key':true}\n/* This is a comment */", toParseTo: .dictionary(["key": .bool(true)]))
+        expect("{'key':true}/* This is a comment */", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
+        expect("{'key':true}\n/* This is a comment */", toParseTo: .dictionary(["key": .bool(true)]), options: [.allowComments])
     }
 
 //    FIXME
@@ -441,13 +441,13 @@ class ParsingTests: XCTestCase {
 
 extension ParsingTests {
     
-    func expect(_ input: String, toParseTo expected: Map, file: StaticString = #file, line: UInt = #line) {
+    func expect(_ input: String, toParseTo expected: Map, options: JSONParserOptions = [], file: StaticString = #file, line: UInt = #line) {
         let input = input.replacingOccurrences(of: "'", with: "\"")
         
         let data = Array(input.utf8)
         
         do {
-            let output = try YAJL.parse(data)
+            let output = try JSONParser.parse(data, options: options)
             XCTAssertEqual(output.description, expected.description, file: file, line: line)
         } catch {
             XCTFail("\(error)", file: file, line: line)
@@ -460,7 +460,7 @@ extension ParsingTests {
         let data = Array(input.utf8)
         
         do {
-            _ = try YAJL.parse(data)
+            _ = try JSONParser.parse(data)
             XCTFail("Expected throw", file: file, line: line)
         } catch {
             // no-op
