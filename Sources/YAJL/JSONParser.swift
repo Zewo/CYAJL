@@ -72,10 +72,8 @@ public final class JSONParser {
     
     public static func parse(_ bytes: UnsafeBufferPointer<UInt8>, options: JSONParserOptions = []) throws -> Map {
         let parser = JSONParser(options: options)
-        guard let map = try parser.parse(bytes, final: true) else {
-            throw JSONParserError(reason: "Unexpected end of bytes.")
-        }
-        return map
+        try parser.parse(bytes)
+        return try parser.finish()
     }
     
     public static func parse(_ bytes: [UInt8], options: JSONParserOptions = []) throws -> Map {
@@ -92,18 +90,18 @@ public final class JSONParser {
     fileprivate let bufferCapacity = 8*1024
     fileprivate let buffer = UnsafeMutablePointer<CChar>.allocate(capacity: 8*1024)
     
-    fileprivate var handle: yajl_handle!
     fileprivate var result: Map? = nil
+    
+    fileprivate var handle: yajl_handle!
     
     public init(options: JSONParserOptions = []) {
         self.options = options
         self.state.dictionaryKey = "root"
         self.stack.reserveCapacity(12)
         
-        var ctx = self
         handle = yajl_alloc(&yajl_handle_callbacks,
                             nil,
-                            &ctx)
+                            Unmanaged.passUnretained(self).toOpaque())
         
         yajl_config_set(handle, yajl_allow_comments, options.contains(.allowComments) ? 1 : 0)
         yajl_config_set(handle, yajl_dont_validate_strings, options.contains(.dontValidateStrings) ? 1 : 0)
@@ -117,73 +115,25 @@ public final class JSONParser {
         buffer.deallocate(capacity: bufferCapacity)
     }
     
-//    @discardableResult
-//    public func parse(_ bytes: UnsafeBufferPointer<UInt8>) throws -> Map? {
-//        let final = bytes.isEmpty
-//        
-//        guard result == nil else {
-//            guard final else {
-//                throw JSONParserError(reason: "Unexpected bytes. Parser already completed.")
-//            }
-//            return result
-//        }
-//        
-//        let status: yajl_status
-//        if !final {
-//            status = yajl_parse(handle, bytes.baseAddress!, bytes.count)
-//        } else {
-//            status = yajl_complete_parse(handle)
-//        }
-//        
-//        guard status == yajl_status_ok else {
-//            let reasonBytes = yajl_get_error(handle, 1, bytes.baseAddress!, bytes.count)
-//            defer {
-//                yajl_free_error(handle, reasonBytes)
-//            }
-//            let reason = String(cString: reasonBytes!)
-//            throw JSONParserError(reason: reason)
-//        }
-//        
-//        if stack.count == 0 || final {
-//            switch state.map {
-//            case .dictionary(let value):
-//                result = value["root"]
-//            default:
-//                break
-//            }
-//        }
-//        
-//        guard !final || result != nil else {
-//            throw JSONParserError(reason: "Unexpected end of bytes.")
-//        }
-//        
-//        return nil
-//    }
-//    
-//    public func finish() throws -> Map {
-//        let bytes: [UInt8] = []
-//        guard let result = try bytes.withUnsafeBufferPointer({ try self.parse($0) }) else {
-//            throw JSONParserError(reason: "Unexpected end of bytes.")
-//        }
-//        return result
-//    }
-
-    public func parse(_ bytes: UnsafeBufferPointer<UInt8>, final: Bool = false) throws -> Map? {
-        guard !bytes.isEmpty else {
-            guard !final || result != nil else {
-                throw JSONParserError(reason: "Unexpected end of bytes.")
+    @discardableResult
+    public func parse(_ bytes: UnsafeBufferPointer<UInt8>) throws -> Map? {
+        let final = bytes.isEmpty
+        
+        guard result == nil else {
+            guard final else {
+                throw JSONParserError(reason: "Unexpected bytes. Parser already completed.")
             }
             return result
         }
         
-        guard result == nil else {
-            throw JSONParserError(reason: "Parser already completed.")
+        let status: yajl_status
+        if !final {
+            status = yajl_parse(handle, bytes.baseAddress!, bytes.count)
+        } else {
+            status = yajl_complete_parse(handle)
         }
         
-        let parseStatus = yajl_parse(handle, bytes.baseAddress!, bytes.count)
-        let completeStatus = (!final) ? yajl_status_ok : yajl_complete_parse(handle)
-        
-        guard parseStatus == yajl_status_ok && completeStatus == yajl_status_ok else {
+        guard status == yajl_status_ok else {
             let reasonBytes = yajl_get_error(handle, 1, bytes.baseAddress!, bytes.count)
             defer {
                 yajl_free_error(handle, reasonBytes)
@@ -192,12 +142,12 @@ public final class JSONParser {
             throw JSONParserError(reason: reason)
         }
         
-        if final {
+        if stack.count == 0 || final {
             switch state.map {
             case .dictionary(let value):
-                result = value["root"] ?? .null
+                result = value["root"]
             default:
-                throw JSONParserError(reason: "Unexpected end of bytes.")
+                break
             }
         }
         
@@ -207,6 +157,54 @@ public final class JSONParser {
         
         return result
     }
+    
+    public func finish() throws -> Map {
+        let bytes: [UInt8] = []
+        guard let result = try bytes.withUnsafeBufferPointer({ try self.parse($0) }) else {
+            throw JSONParserError(reason: "Unexpected end of bytes.")
+        }
+        return result
+    }
+
+//    public func parse(_ bytes: UnsafeBufferPointer<UInt8>, final: Bool = false) throws -> Map? {
+//        guard !bytes.isEmpty else {
+//            guard !final || result != nil else {
+//                throw JSONParserError(reason: "Unexpected end of bytes.")
+//            }
+//            return result
+//        }
+//        
+//        guard result == nil else {
+//            throw JSONParserError(reason: "Parser already completed.")
+//        }
+//        
+//        let parseStatus = yajl_parse(handle, bytes.baseAddress!, bytes.count)
+//        let completeStatus = (!final) ? yajl_status_ok : yajl_complete_parse(handle)
+//        
+//        guard parseStatus == yajl_status_ok && completeStatus == yajl_status_ok else {
+//            let reasonBytes = yajl_get_error(handle, 1, bytes.baseAddress!, bytes.count)
+//            defer {
+//                yajl_free_error(handle, reasonBytes)
+//            }
+//            let reason = String(cString: reasonBytes!)
+//            throw JSONParserError(reason: reason)
+//        }
+//        
+//        if final {
+//            switch state.map {
+//            case .dictionary(let value):
+//                result = value["root"] ?? .null
+//            default:
+//                throw JSONParserError(reason: "Unexpected end of bytes.")
+//            }
+//        }
+//        
+//        guard !final || result != nil else {
+//            throw JSONParserError(reason: "Unexpected end of bytes.")
+//        }
+//        
+//        return result
+//    }
     
     fileprivate func appendNull() -> Int32 {
         return state.appendNull()
@@ -364,27 +362,27 @@ fileprivate var yajl_handle_callbacks = yajl_callbacks(
 )
 
 fileprivate func yajl_null(_ ptr: UnsafeMutableRawPointer?) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.appendNull()
 }
 
 fileprivate func yajl_boolean(_ ptr: UnsafeMutableRawPointer?, value: Int32) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.appendBoolean(value != 0)
 }
 
 fileprivate func yajl_integer(_ ptr: UnsafeMutableRawPointer?, value: Int64) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.appendInteger(value)
 }
 
 fileprivate func yajl_double(_ ptr: UnsafeMutableRawPointer?, value: Double) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.appendDouble(value)
 }
 
 fileprivate func yajl_string(_ ptr: UnsafeMutableRawPointer?, buffer: UnsafePointer<UInt8>?, bufferLength: Int) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     
     let str: String
     if bufferLength > 0 {
@@ -406,12 +404,12 @@ fileprivate func yajl_string(_ ptr: UnsafeMutableRawPointer?, buffer: UnsafePoin
 }
 
 fileprivate func yajl_start_map(_ ptr: UnsafeMutableRawPointer?) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.startMap()
 }
 
 fileprivate func yajl_map_key(_ ptr: UnsafeMutableRawPointer?, buffer: UnsafePointer<UInt8>?, bufferLength: Int) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     
     let str: String
     if bufferLength > 0 {
@@ -433,16 +431,16 @@ fileprivate func yajl_map_key(_ ptr: UnsafeMutableRawPointer?, buffer: UnsafePoi
 }
 
 fileprivate func yajl_end_map(_ ptr: UnsafeMutableRawPointer?) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.endMap()
 }
 
 fileprivate func yajl_start_array(_ ptr: UnsafeMutableRawPointer?) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.startArray()
 }
 
 fileprivate func yajl_end_array(_ ptr: UnsafeMutableRawPointer?) -> Int32 {
-    let ctx = ptr!.assumingMemoryBound(to: JSONParser.self).pointee
+    let ctx = Unmanaged<JSONParser>.fromOpaque(ptr!).takeUnretainedValue()
     return ctx.endArray()
 }
