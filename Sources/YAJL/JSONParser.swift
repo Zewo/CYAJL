@@ -116,6 +116,57 @@ public final class JSONParser {
         yajl_free(handle)
         buffer.deallocate(capacity: bufferCapacity)
     }
+    
+//    @discardableResult
+//    public func parse(_ bytes: UnsafeBufferPointer<UInt8>) throws -> Map? {
+//        let final = bytes.isEmpty
+//        
+//        guard result == nil else {
+//            guard final else {
+//                throw JSONParserError(reason: "Unexpected bytes. Parser already completed.")
+//            }
+//            return result
+//        }
+//        
+//        let status: yajl_status
+//        if !final {
+//            status = yajl_parse(handle, bytes.baseAddress!, bytes.count)
+//        } else {
+//            status = yajl_complete_parse(handle)
+//        }
+//        
+//        guard status == yajl_status_ok else {
+//            let reasonBytes = yajl_get_error(handle, 1, bytes.baseAddress!, bytes.count)
+//            defer {
+//                yajl_free_error(handle, reasonBytes)
+//            }
+//            let reason = String(cString: reasonBytes!)
+//            throw JSONParserError(reason: reason)
+//        }
+//        
+//        if stack.count == 0 || final {
+//            switch state.map {
+//            case .dictionary(let value):
+//                result = value["root"]
+//            default:
+//                break
+//            }
+//        }
+//        
+//        guard !final || result != nil else {
+//            throw JSONParserError(reason: "Unexpected end of bytes.")
+//        }
+//        
+//        return nil
+//    }
+//    
+//    public func finish() throws -> Map {
+//        let bytes: [UInt8] = []
+//        guard let result = try bytes.withUnsafeBufferPointer({ try self.parse($0) }) else {
+//            throw JSONParserError(reason: "Unexpected end of bytes.")
+//        }
+//        return result
+//    }
 
     public func parse(_ bytes: UnsafeBufferPointer<UInt8>, final: Bool = false) throws -> Map? {
         guard !bytes.isEmpty else {
