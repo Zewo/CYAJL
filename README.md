@@ -4,7 +4,7 @@
 [![License][mit-badge]][mit-url]
 [![Slack][slack-badge]][slack-url]
 
-CYAJL is an unmodified fork of of [YAJL](https://lloyd.github.io/yajl/).
+CYAJL is a clone of [YAJL](https://lloyd.github.io/yajl/).
 
 ## Community
 
